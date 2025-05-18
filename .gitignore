@@ -1,4 +1,3 @@
-*.obj
 *.pth
 RadioGalaxyNET_Dataset/
 wandb/
