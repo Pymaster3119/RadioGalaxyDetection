@@ -63,7 +63,7 @@ def main():
     wandb.config = {
         "learning_rate": 5e-4,
         "epochs": 20,
-        "batch_size": 64
+        "batch_size": 1
     }
     
     # Instantiate datasets and DataLoaders in the main process
