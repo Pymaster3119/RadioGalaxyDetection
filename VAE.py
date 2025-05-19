@@ -79,7 +79,7 @@ def main():
         "epochs": 50,
         "batch_size": 128,
         "latent_dim": 128,
-        "beta": 1.0,
+        "beta": 0.5,
     }
 
     # Instantiate datasets and DataLoaders in the main process
@@ -101,36 +101,48 @@ def main():
     for epoch in range(wandb.config["epochs"]):
         vae.train()
         running_loss = 0.0
+        running_recon = 0.0
+        running_kl = 0.0
         total_samples = 0
         for batch in tqdm(train_loader, desc=f"Epoch {epoch+1}/{wandb.config['epochs']} - Training"):
             # For compatibility if batch is a list of tensors
             inputs = batch[0].to(device)
             optimizer.zero_grad()
             recon_x, mu, logvar = vae(inputs)
-            loss = losslib.VAE_loss_function(recon_x, inputs, mu, logvar, beta=wandb.config["beta"])
+            loss, recon, kl = losslib.VAE_loss_function(recon_x, inputs, mu, logvar, beta=wandb.config["beta"])
             loss.backward()
             optimizer.step()
 
             running_loss += loss.item() * inputs.size(0)
+            running_recon += recon.item() * inputs.size(0)
+            running_kl += kl.item() * inputs.size(0)
             total_samples += inputs.size(0)
         
         avg_train_loss = running_loss / total_samples
         wandb.log({"Train Loss": avg_train_loss}, step=epoch)
+        wandb.log({"Train Recon": running_recon / total_samples}, step=epoch)
+        wandb.log({"Train KL": running_kl / total_samples}, step=epoch)
 
         # Validation loop
         vae.eval()
         running_val_loss = 0.0
+        running_recon = 0.0
+        running_kl = 0.0
         total_val_samples = 0
         with torch.no_grad():
             for batch in tqdm(val_loader, desc=f"Epoch {epoch+1}/{wandb.config['epochs']} - Validation"):
                 inputs = batch[0].to(device)
                 recon_x, mu, logvar = vae(inputs)
-                loss = losslib.VAE_loss_function(recon_x, inputs, mu, logvar, beta=wandb.config["beta"])
+                loss, recon, kl = losslib.VAE_loss_function(recon_x, inputs, mu, logvar, beta=wandb.config["beta"])
                 running_val_loss += loss.item() * inputs.size(0)
+                running_recon += recon.item() * inputs.size(0)
+                running_kl += kl.item() * inputs.size(0)
                 total_val_samples += inputs.size(0)
         
         avg_val_loss = running_val_loss / total_val_samples
         wandb.log({"Validation Loss": avg_val_loss}, step=epoch)
+        wandb.log({"Validation Recon": running_recon / total_val_samples}, step=epoch)
+        wandb.log({"Validation KL": running_kl / total_val_samples}, step=epoch)
         # Log a sample input and its reconstruction as an image to WANDB
         vae.eval()
         sample_batch = next(iter(val_loader))
