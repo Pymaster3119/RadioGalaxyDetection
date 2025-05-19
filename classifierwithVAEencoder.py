@@ -145,5 +145,5 @@ def main():
             "val_loss": val_unweighted_loss / len(test_loader)
         }, step=epoch)
 
-        save_path = f"VAE_Augmented_Classifier{epoch}.pt"
+        save_path = f"classifierwithVAEencoder.pth"
         torch.save(model.state_dict(), save_path)
