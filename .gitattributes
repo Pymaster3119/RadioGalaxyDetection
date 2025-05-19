@@ -3,3 +3,4 @@
 RadioGalaxyNET_Dataset/** filter=lfs diff=lfs merge=lfs -text
 Alpha.5[[:space:]]Gamma2/*.pth filter=lfs diff=lfs merge=lfs -text
 wandb/** filter=lfs diff=lfs merge=lfs -text
+wandb/* filter=lfs diff=lfs merge=lfs -text
