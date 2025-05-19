@@ -7,7 +7,6 @@ import torch.nn.functional as F
 import torchvision.transforms as transforms
 from tqdm import tqdm
 import timm
-import schedulefree.adamw_schedulefree
 
 import wandb
 import matplotlib.pyplot as plt
@@ -73,12 +72,12 @@ class VAE(nn.Module):
         recon_x = self.decode(z)
         return recon_x, mu, logvar
 
-if __name__ == '__main__':
+def main():
     wandb.init(project="radiowaves-VAE")
     wandb.config = {
         "learning_rate": 1e-3,
         "epochs": 50,
-        "batch_size": 32,
+        "batch_size": 128,
         "latent_dim": 128,
         "beta": 1.0,
     }
@@ -152,3 +151,8 @@ if __name__ == '__main__':
             axs[1, i].axis("off")
         wandb.log({"Input-Reconstruction": wandb.Image(fig)}, step=epoch)
         plt.close(fig)
+
+        torch.save(vae, '/content/drive/MyDrive/Colab Notebooks/Radio Waves/VAEmodel.pth')
+
+if __name__ == '__main__':
+  main()
