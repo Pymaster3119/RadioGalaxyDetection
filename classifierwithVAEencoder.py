@@ -28,29 +28,28 @@ import dataparsing
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def main():
-    # Create model
-    
+    # 1) Load your pretrained VAE before defining Net
+    vae = dataparsing.load_VAE(device)
+    vae.eval()
 
+    # 2) Define classifier that always uses the VAE encoder → 128-dim latent
     class Net(nn.Module):
-        def __init__(self, VAE=None):
+        def __init__(self, VAE):
             super(Net, self).__init__()
             self.vae = VAE
-            # Input dimension matches VAE latent vector dimension (assumed to be 128)
             self.fc1 = nn.Linear(128, 64)
             self.fc2 = nn.Linear(64, 4)
 
         def forward(self, x):
-            if self.vae is not None:
-                with torch.no_grad():
-                    x = self.vae.encode(x)
-                    x = self.vae.reparameterize(x[0], x[1])
+            # encode to mu/logvar, reparameterize → z
+            with torch.no_grad():
+                mu, logvar = self.vae.encode(x)
+                x = self.vae.reparameterize(mu, logvar)
             x = F.relu(self.fc1(x))
             return self.fc2(x)
 
-    model = Net().to(device)
-
-    #Initialize VAE
-    vae = dataparsing.load_VAE(device)
+    # 3) Instantiate classifier *with* the VAE
+    model = Net(vae).to(device)
 
     # Initialize wandb inside main so that it is not re-run in child processes.
     wandb.init(project="radiowaves-classifier-VIT")
