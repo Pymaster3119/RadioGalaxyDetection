@@ -7,6 +7,7 @@ import torch.nn.functional as F
 import torchvision.transforms as transforms
 from tqdm import tqdm
 import timm
+import random
 
 # Global variables that are safe (won't trigger side-effects on spawn)
 imgs = []
@@ -20,16 +21,16 @@ transform = transforms.Compose([
 ])
 
 # Load data
-with open("train_cropped_X.obj", 'rb') as f:
-    with open("train_cropped_y.obj", 'rb') as g:
+with open("/content/drive/MyDrive/Colab Notebooks/Radio Waves/train_cropped_X.obj", 'rb') as f:
+    with open("/content/drive/MyDrive/Colab Notebooks/Radio Waves/train_cropped_y.obj", 'rb') as g:
         train = (pickle.load(f), pickle.load(g))
 
-with open("test_cropped_X.obj", 'rb') as f:
-    with open("test_cropped_y.obj", 'rb') as g:
+with open("/content/drive/MyDrive/Colab Notebooks/Radio Waves/test_cropped_X.obj", 'rb') as f:
+    with open("/content/drive/MyDrive/Colab Notebooks/Radio Waves/test_cropped_y.obj", 'rb') as g:
         test = (pickle.load(f), pickle.load(g))
 
-with open("val_cropped_X.obj", 'rb') as f:
-    with open("val_cropped_y.obj", 'rb') as g:
+with open("/content/drive/MyDrive/Colab Notebooks/Radio Waves/val_cropped_X.obj", 'rb') as f:
+    with open("/content/drive/MyDrive/Colab Notebooks/Radio Waves/val_cropped_y.obj", 'rb') as g:
         val = (pickle.load(f), pickle.load(g))
 
 class AugmentedDataset(Dataset):
@@ -47,18 +48,20 @@ class AugmentedDataset(Dataset):
         X_cropped = np.transpose(X_cropped, (2, 0, 1))
         selected_channel = self.data[1][idx]
         if self.transforms:
-            # Apply transforms (on CPU) and add noise
+            # Apply CPU‐side augmentations
             X_cropped = transform(torch.tensor(X_cropped)).numpy()
             noise = np.random.normal(0, 0.1, X_cropped.shape).astype(np.float32)
-            X_cropped = X_cropped + noise
-            X_cropped = np.clip(X_cropped, 0, 1)
+            X_cropped = np.clip(X_cropped + noise, 0, 1)
 
-            if self.vae!= False:
-                # Apply VAE
-                recon, mu, logvar = self.vae(input)
+            if self.vae: #and random.random() < 0.5:
+                # Prepare a batch dim, send to device, run VAE
+                vae_input = torch.tensor(X_cropped, dtype=torch.float32).unsqueeze(0).to(self.device)
+                recon, mu, sigma = self.vae(vae_input)
+                # bring back to CPU→numpy and remove batch dim
+                recon = recon.squeeze(0).cpu().detach().numpy()
                 X_cropped = np.clip(recon, 0, 1)
+
         return X_cropped, selected_channel
-    
 
 class VAE(nn.Module):
     def __init__(self, latent_dim=128):
@@ -121,7 +124,7 @@ def load_VAE(device):
     model = VAE(128).to(device)
 
     # Load the saved model weights
-    model = torch.load('VAEmodel.pth', map_location=device)
+    model = torch.load('/content/drive/MyDrive/Colab Notebooks/Radio Waves/VAEmodel.pth', map_location=device, weights_only = False)
     model.eval()
 
     return model

@@ -17,6 +17,8 @@ import torchvision.transforms as transforms
 from tqdm import tqdm
 import timm
 import schedulefree.adamw_schedulefree
+import torch.nn as nn
+import torch.nn.functional as F
 
 import wandb
 import loss as losslib
@@ -27,12 +29,25 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def main():
     # Create model
-    model = timm.create_model('vit_tiny_patch16_224', pretrained=True, num_classes=4, img_size=64)
-    model.head = nn.Sequential(
-        nn.Dropout(0.5),  # adjust dropout probability as desired
-        model.head
-    )
-    model = model.to(device)
+    
+
+    class Net(nn.Module):
+        def __init__(self, VAE=None):
+            super(Net, self).__init__()
+            self.vae = VAE
+            # Input dimension matches VAE latent vector dimension (assumed to be 128)
+            self.fc1 = nn.Linear(128, 64)
+            self.fc2 = nn.Linear(64, 4)
+
+        def forward(self, x):
+            if self.vae is not None:
+                with torch.no_grad():
+                    x = self.vae.encode(x)
+                    x = self.vae.reparameterize(x[0], x[1])
+            x = F.relu(self.fc1(x))
+            return self.fc2(x)
+
+    model = Net().to(device)
 
     #Initialize VAE
     vae = dataparsing.load_VAE(device)
@@ -41,12 +56,12 @@ def main():
     wandb.init(project="radiowaves-classifier-VIT")
     wandb.config = {
         "learning_rate": 5e-4,
-        "epochs": 50,
+        "epochs": 20,
         "batch_size": 64
     }
     
     # Instantiate datasets and DataLoaders in the main process
-    train_dataset = dataparsing.AugmentedDataset(dataparsing.train, transforms=True, vae=vae, device=device)
+    train_dataset = dataparsing.AugmentedDataset(dataparsing.train)#, transforms=True, vae=vae, device=device)
     test_dataset = dataparsing.AugmentedDataset(dataparsing.test)
     val_dataset = dataparsing.AugmentedDataset(dataparsing.val)
     
@@ -107,7 +122,7 @@ def main():
         total = 0
         
         with torch.no_grad():
-            for images, labels in val_loader:
+            for images, labels in test_loader:
                 images, labels = images.to(device), labels.to(device)
                 outputs = model(images)
                 loss = criterion(outputs, labels)
@@ -119,9 +134,9 @@ def main():
                 correct += (predicted == labels).sum().item()
         
         wandb.log({
-            "val_weighted_loss": val_loss / len(val_loader), 
+            "val_weighted_loss": val_loss / len(test_loader), 
             "val_accuracy": correct / total, 
-            "val_loss": val_unweighted_loss / len(val_loader)
+            "val_loss": val_unweighted_loss / len(test_loader)
         }, step=epoch)
 
         save_path = f"VAE_Augmented_Classifier{epoch}.pt"
