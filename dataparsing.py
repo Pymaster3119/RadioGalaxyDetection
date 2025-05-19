@@ -7,7 +7,6 @@ import torch.nn.functional as F
 import torchvision.transforms as transforms
 from tqdm import tqdm
 import timm
-import schedulefree.adamw_schedulefree
 
 # Global variables that are safe (won't trigger side-effects on spawn)
 imgs = []
@@ -34,10 +33,11 @@ with open("val_cropped_X.obj", 'rb') as f:
         val = (pickle.load(f), pickle.load(g))
 
 class AugmentedDataset(Dataset):
-    def __init__(self, data, transforms=False):
+    def __init__(self, data, transforms=False, vae = False, device = None):
         self.data = data
         self.transforms = transforms
-        
+        self.vae = vae
+        self.device = device
     def __len__(self):
         return len(self.data[0]) * 10 if self.transforms else len(self.data[0])
         
@@ -52,7 +52,76 @@ class AugmentedDataset(Dataset):
             noise = np.random.normal(0, 0.1, X_cropped.shape).astype(np.float32)
             X_cropped = X_cropped + noise
             X_cropped = np.clip(X_cropped, 0, 1)
-        return X_cropped, selected_channel
 
-# Set device
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            if self.vae!= False:
+                # Apply VAE
+                recon, mu, logvar = self.vae(input)
+                X_cropped = np.clip(recon, 0, 1)
+        return X_cropped, selected_channel
+    
+
+class VAE(nn.Module):
+    def __init__(self, latent_dim=128):
+        super(VAE, self).__init__()
+        self.latent_dim = latent_dim
+
+        # Encoder
+        self.encoder = nn.Sequential(
+            nn.Conv2d(3, 32, kernel_size=4, stride=2, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(32, 64, kernel_size=4, stride=2, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(64, 128, kernel_size=4, stride=2, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(128, 256, kernel_size=4, stride=2, padding=1),
+            nn.ReLU(),
+        )
+        self.fc_mu = nn.Linear(256 * 4 * 4, latent_dim)
+        self.fc_logvar = nn.Linear(256 * 4 * 4, latent_dim)
+
+        # Decoder
+        self.fc_decode = nn.Linear(latent_dim, 256 * 4 * 4)
+        self.decoder = nn.Sequential(
+            nn.ConvTranspose2d(256, 128, kernel_size=4, stride=2, padding=1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(128, 64, kernel_size=4, stride=2, padding=1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(64, 32, kernel_size=4, stride=2, padding=1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(32, 3, kernel_size=4, stride=2, padding=1), 
+            nn.Sigmoid(),
+        )
+
+    def encode(self, x):
+        x = self.encoder(x)
+        x = x.view(x.size(0), -1)
+        mu = self.fc_mu(x)
+        logvar = self.fc_logvar(x)
+        return mu, logvar
+
+    def reparameterize(self, mu, logvar):
+        std = torch.exp(0.5 * logvar)
+        eps = torch.randn_like(std)
+        return mu + eps * std
+
+    def decode(self, z):
+        x = self.fc_decode(z)
+        x = x.view(x.size(0), 256, 4, 4)
+        x = self.decoder(x)
+        return x
+
+    def forward(self, x):
+        mu, logvar = self.encode(x)
+        z = self.reparameterize(mu, logvar)
+        recon_x = self.decode(z)
+        return recon_x, mu, logvar
+
+def load_VAE(device):
+    # Set device
+    model = VAE(128).to(device)
+
+    # Load the saved model weights
+    model = torch.load('VAEmodel.pth', map_location=device)
+    model.eval()
+
+    return model
