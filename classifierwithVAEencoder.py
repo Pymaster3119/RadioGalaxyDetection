@@ -36,18 +36,23 @@ def main():
         def __init__(self, VAE):
             super(Net, self).__init__()
             self.vae = VAE
-            self.fc1 = nn.Linear(256, 64)
-            self.fc2 = nn.Linear(64, 32)
-            self.fc3 = nn.Linear(32, 4)  # Assuming 4 classes
+            self.fc1 = nn.Linear(256, 512)
+            self.fc2 = nn.Linear(512, 1024)
+            self.fc3 = nn.Linear(1024, 256)
+            self.fc4 = nn.Linear(256, 4)
+            self.dropout = nn.Dropout(0.5)
 
         def forward(self, x):
-            # encode to mu/logvar, reparameterize → z
             with torch.no_grad():
                 mu, logvar = self.vae.encode(x)
                 x = torch.cat([mu, logvar], dim=1)
             x = F.relu(self.fc1(x))
+            x = self.dropout(x)
             x = F.relu(self.fc2(x))
-            x = F.sigmoid(self.fc3(x))
+            x = self.dropout(x)
+            x = F.relu(self.fc3(x))
+            x = self.dropout(x)
+            x = self.fc4(x)
             return x
 
     # 3) Instantiate classifier *with* the VAE
