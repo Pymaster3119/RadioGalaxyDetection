@@ -8,6 +8,7 @@ import torchvision.transforms as transforms
 from tqdm import tqdm
 import timm
 import random
+import os
 
 # Global variables that are safe (won't trigger side-effects on spawn)
 imgs = []
@@ -21,16 +22,16 @@ transform = transforms.Compose([
 ])
 
 # Load data
-with open("/content/drive/MyDrive/Colab Notebooks/Radio Waves/train_cropped_X.obj", 'rb') as f:
-    with open("/content/drive/MyDrive/Colab Notebooks/Radio Waves/train_cropped_y.obj", 'rb') as g:
+with open(os.getcwd()+"/train_cropped_X.obj", 'rb') as f:
+    with open(os.getcwd()+"/train_cropped_y.obj", 'rb') as g:
         train = (pickle.load(f), pickle.load(g))
 
-with open("/content/drive/MyDrive/Colab Notebooks/Radio Waves/test_cropped_X.obj", 'rb') as f:
-    with open("/content/drive/MyDrive/Colab Notebooks/Radio Waves/test_cropped_y.obj", 'rb') as g:
+with open(os.getcwd()+"/test_cropped_X.obj", 'rb') as f:
+    with open(os.getcwd()+"/test_cropped_y.obj", 'rb') as g:
         test = (pickle.load(f), pickle.load(g))
 
-with open("/content/drive/MyDrive/Colab Notebooks/Radio Waves/val_cropped_X.obj", 'rb') as f:
-    with open("/content/drive/MyDrive/Colab Notebooks/Radio Waves/val_cropped_y.obj", 'rb') as g:
+with open(os.getcwd()+"/val_cropped_X.obj", 'rb') as f:
+    with open(os.getcwd()+"/val_cropped_y.obj", 'rb') as g:
         val = (pickle.load(f), pickle.load(g))
 
 class AugmentedDataset(Dataset):
@@ -124,7 +125,7 @@ def load_VAE(device):
     model = VAE(128).to(device)
 
     # Load the saved model weights
-    model = torch.load('/content/drive/MyDrive/Colab Notebooks/Radio Waves/VAEmodel.pth', map_location=device, weights_only = False)
+    model = torch.load(os.getcwd()+'/VAEmodel.pth', map_location=device, weights_only = False)
     model.eval()
 
     return model
