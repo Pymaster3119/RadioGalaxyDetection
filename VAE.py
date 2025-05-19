@@ -12,6 +12,7 @@ import wandb
 import matplotlib.pyplot as plt
 import loss as losslib
 import dataparsing
+import os
 
 # Set device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -76,7 +77,7 @@ def main():
     wandb.init(project="radiowaves-VAE")
     wandb.config = {
         "learning_rate": 1e-3,
-        "epochs": 50,
+        "epochs": 20,
         "batch_size": 128,
         "latent_dim": 128,
         "beta": 0.5,
@@ -164,7 +165,7 @@ def main():
         wandb.log({"Input-Reconstruction": wandb.Image(fig)}, step=epoch)
         plt.close(fig)
 
-        torch.save(vae, '/content/drive/MyDrive/Colab Notebooks/Radio Waves/VAEmodel.pth')
+        torch.save(vae, os.getcwd()+'/VAEmodel.pth')
 
 if __name__ == '__main__':
   main()
